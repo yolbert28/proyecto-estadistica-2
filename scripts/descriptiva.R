@@ -17,12 +17,14 @@ datos <- SleepStudy
 # Seleccionamos algunas variables cuantitativas clave
 vars_cuantitativas <- c("GPA", "ClassesMissed", "CognitionZscore", "PoorSleepQuality",
                         "DepressionScore", "AnxietyScore", "StressScore", "DASScore",
-                        "Happiness", "Drinks", "WeekdaySleep", "WeekendSleep", "AverageSleep")
+                        "Happiness", "Drinks", "WeekdaySleep", "WeekendSleep", "WeekdayBed", "WeekdayRise", "AverageSleep")
 
 # Función para calcular estadísticas descriptivas
 estadisticas_descriptivas <- function(x) {
   x <- na.omit(x) # Eliminar NA's
   data.frame(
+    Mínimo = min(x),
+    Máximo = max(x),
     Media = mean(x),
     Mediana = median(x),
     Moda = names(which.max(table(x))),
@@ -109,7 +111,7 @@ violin_plots <- map(c("WeekdaySleep", "WeekendSleep", "AverageSleep"), ~{
 
 # 1. Gráfico de distribución de género
 g_genero <- ggplot(datos, aes(x = factor(Gender, labels = c("Mujer", "Hombre")))) +
-  geom_bar(fill = c("#FF9AA2", "#A0E7E5"), width = 0.7) +
+  geom_bar(fill = c("#FF9AA2", "#81dfde"), width = 0.7) +
   geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
   labs(title = "Distribución por Género", 
        x = "Género", y = "Cantidad de estudiantes") +
@@ -131,20 +133,36 @@ g_cronotipo <- datos %>%
   theme(legend.position = "none")
 
 # 3. Presencia en clases antes de las 9 de la mañana
-g_clases_tempranas <- ggplot(datos, aes(x = NumEarlyClass)) +
-  geom_bar(fill = "#B5EAD7", color = "black") +
-  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
-  labs(title = "Clases antes de las 9am por semana",
-       x = "Número de clases tempranas", y = "Estudiantes") +
-  scale_x_continuous(breaks = 0:5) +
-  theme_fivethirtyeight()
-
-# 4. Histograma de clases perdidas (ClassesMissed)
-g_clases_perdidas <- ggplot(datos, aes(x = ClassesMissed)) +
-  geom_histogram(bins = 20, fill = "#FFB7B2", color = "black") +
-  labs(title = "Distribución de clases perdidas",
-       x = "Clases perdidas en el semestre", y = "Frecuencia") +
+g_clases_tempranas <- ggplot(datos, aes(x = factor(EarlyClass, labels = c("No", "Sí")))) +
+  geom_bar(fill = c("#ff5961", "#59cf70"), width = 0.6) +
+  geom_text(
+    aes(label = paste0(round(after_stat(count)/sum(after_stat(count))*100, 1), "%"),
+        y = after_stat(count)/sum(after_stat(count))),
+    stat = "count", 
+    vjust = -0.5
+  ) +
+  labs(
+    title = "Presencia en clases antes de las 9am",
+    x = "Tiene clases antes de las 9am", 
+    y = "Porcentaje"
+  ) +
+  scale_y_continuous(labels = scales::percent_format()) +
   theme_minimal()
+
+
+# 4. histograma de clases perdidas
+g_clases_perdidas <- ggplot(datos, aes(x = ClassesMissed)) +
+  geom_histogram(binwidth = 1, fill = "#25943c", color = "white", alpha = 0.8) +
+  scale_x_continuous(breaks = seq(0, max(datos$ClassesMissed), by = 1),
+                     limits = c(-0.5, max(datos$ClassesMissed) + 0.5)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  labs(title = "Distribución de Clases Perdidas por Semestre",
+       x = "Número de clases perdidas", 
+       y = "Cantidad de estudiantes",
+       caption = paste("Máximo observado:", max(datos$ClassesMissed), "clases")) +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_text(color = "gray40"))
 
 # 5. Consumo de alcohol
 g_alcohol <- datos %>%
@@ -173,8 +191,53 @@ g_gpa_cronotipo <- datos %>%
   theme_minimal() +
   theme(legend.position = "none")
 
+
+
+## 7. GPA vs. Hora de acostarse entre semana (WeekdayBed)
+g1 <- ggplot(datos, aes(x = WeekdayBed, y = GPA)) +
+  geom_point(aes(color = factor(Gender, labels = c("Mujer", "Hombre"))), alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "darkred") +
+  scale_x_continuous(breaks = seq(20, 28, by = 1),
+                     labels = function(x) paste0(x %% 24, ":00")) +
+  scale_color_manual(values = c("#FF9AA2", "#A0E7E5")) +
+  labs(title = "Relación entre GPA y Hora de Acostarse (días de semana)",
+       x = "Hora de acostarse (24h)",
+       y = "GPA",
+       color = "Género") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+## 8. GPA vs. Hora de levantarse entre semana (WeekdayRise)
+g2 <- ggplot(datos, aes(x = WeekdayRise, y = GPA)) +
+  geom_point(aes(color = LarkOwl), alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "darkblue") +
+  scale_x_continuous(breaks = seq(5, 14, by = 1),
+                     labels = function(x) paste0(x %% 24, ":00")) +
+  scale_color_brewer(palette = "Set2") +
+  labs(title = "Relación entre GPA y Hora de Levantarse (días de semana)",
+       x = "Hora de levantarse (24h)",
+       y = "GPA",
+       color = "Cronotipo") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+## 9. GPA vs. Duración del sueño (WeekdaySleep)
+g3 <- ggplot(datos, aes(x = WeekdaySleep, y = GPA)) +
+  geom_point(aes(size = PoorSleepQuality, color = Stress), alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "darkgreen") +
+  scale_color_manual(values = c("normal" = "#B5EAD7", "high" = "#FFB7B2")) +
+  labs(title = "Relación entre GPA y Duración del Sueño",
+       x = "Horas de sueño (días de semana)",
+       y = "GPA",
+       color = "Nivel de Estrés",
+       size = "Calidad de Sueño\n(mayor = peor)") +
+  theme_minimal()
+
 ## Mostrar todos los gráficos adicionales
 
+g1
+g2
+g3
 g_genero
 g_cronotipo
 g_clases_tempranas
