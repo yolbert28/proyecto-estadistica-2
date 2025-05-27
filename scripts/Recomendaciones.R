@@ -1,286 +1,193 @@
-# Cargar librerías necesarias
-# install.packages("moments")
-library(Lock5Data)
-library(tidyverse)
-library(ggplot2)
-library(dplyr)
-library(purrr)
-library(car)
-library(nortest)
-library(ggpubr)
-library(moments)
+# install.packages("ggthemes")
 
-#1. Carga y preparacion de datos
+# Cargar las librerías necesarias
+library(Lock5Data)    # Para acceder a la base de datos SleepStudy
+library(dplyr)
+library(tidyverse)    # Para manipulación de datos y visualización
+library(moments)      # Para cálculo de asimetría y curtosis
+library(gridExtra)    # Para organizar múltiples gráficos
+library(ggthemes)     # Para estilos de gráficos adicionales
 
 # Cargar los datos
 data("SleepStudy")
 datos <- SleepStudy
 
-# Verificar estructura de los datos
-str(datos)
-summary(datos)
+## 1. Medidas de tendencia central, dispersión y forma para variables cuantitativas
 
-# Convertir variables categóricas a factores
-datos <- datos %>%
-  mutate(Gender = factor(Gender, levels = c(0, 1), labels = c("Mujer", "Hombre")),
-         ClassYear = factor(ClassYear),
-         LarkOwl = factor(LarkOwl, levels = c("Lark", "Neither", "Owl")),
-         EarlyClass = factor(EarlyClass),
-         DepressionStatus = factor(DepressionStatus, levels = c("normal", "moderate", "severe")),
-         AnxietyStatus = factor(AnxietyStatus, levels = c("normal", "moderate", "severe")),
-         Stress = factor(Stress, levels = c("normal", "high")),
-         AlcoholUse = factor(AlcoholUse, levels = c("Abstain", "Light", "Moderate", "Heavy")),
-         AllNighter = factor(AllNighter))
+# Seleccionamos algunas variables cuantitativas clave
+vars_cuantitativas <- c("GPA", "ClassesMissed", "CognitionZscore", "PoorSleepQuality",
+                        "DepressionScore", "AnxietyScore", "StressScore", "DASScore",
+                        "Happiness", "Drinks", "WeekdaySleep", "WeekendSleep", "AverageSleep")
 
-
-
-
-
-
-
-
-#2. Análisis descriptivo
-
-# Función para resumen descriptivo
-resumen_descriptivo <- function(variable, nombre) {
-  media <- mean(variable, na.rm = TRUE)
-  mediana <- median(variable, na.rm = TRUE)
-  sd <- sd(variable, na.rm = TRUE)
-  asimetria <- skewness(variable, na.rm = TRUE)
-  curtosis <- kurtosis(variable, na.rm = TRUE)
-  
+# Función para calcular estadísticas descriptivas
+estadisticas_descriptivas <- function(x) {
+  x <- na.omit(x) # Eliminar NA's
   data.frame(
-    Variable = nombre,
-    Media = media,
-    Mediana = mediana,
-    Desviación = sd,
-    Asimetría = asimetria,
-    Curtosis = curtosis
+    Media = mean(x),
+    Mediana = median(x),
+    Moda = names(which.max(table(x))),
+    Desviacion = sd(x),
+    Varianza = var(x),
+    Rango_IQR = IQR(x),
+    Asimetria = skewness(x),
+    Curtosis = kurtosis(x)
   )
 }
 
-# Variables continuas de interés
-variables_interes <- c("GPA", "WeekdaySleep", "WeekendSleep", "AverageSleep", 
-                       "PoorSleepQuality", "DepressionScore", "AnxietyScore", 
-                       "StressScore", "Happiness", "Drinks")
+# Aplicamos la función a cada variable cuantitativa
+estadisticas <- map_dfr(datos[vars_cuantitativas], estadisticas_descriptivas, .id = "Variable")
 
-# Resumen descriptivo por género
-descrip_hombres <- datos %>%
-  filter(Gender == "Hombre") %>%
-  select(all_of(variables_interes)) %>%
-  map_df(~resumen_descriptivo(., deparse(substitute(.))))
+# Mostramos las estadísticas
+print(estadisticas)
 
-descrip_mujeres <- datos %>%
-  filter(Gender == "Mujer") %>%
-  select(all_of(variables_interes)) %>%
-  map_df(~resumen_descriptivo(., deparse(substitute(.))))
+## 2. Distribuciones de frecuencia para variables cualitativas
 
-# Mostrar resultados
-print("Resumen descriptivo para hombres:")
-print(descrip_hombres)
+vars_cualitativas <- c("Gender", "ClassYear", "LarkOwl", "EarlyClass", 
+                       "DepressionStatus", "AnxietyStatus", "Stress", 
+                       "AlcoholUse", "AllNighter")
 
-print("Resumen descriptivo para mujeres:")
-print(descrip_mujeres)
-
-
-
-
-
-
-#3. Visualización de datos
-
-# Histogramas para variables continuas
-for (var in variables_interes) {
-  print(
-    ggplot(datos, aes_string(x = var, fill = "Gender")) +
-      geom_histogram(alpha = 0.6, position = "identity", bins = 30) +
-      labs(title = paste("Distribución de", var), x = var, y = "Frecuencia") +
-      theme_minimal()
-  )
+# Función para generar tablas de frecuencia
+tabla_frecuencias <- function(var_name) {
+  datos %>%
+    count(.data[[var_name]]) %>%
+    mutate(Proporcion = n / sum(n) * 100) %>%
+    rename(Categoria = 1)
 }
 
-# Boxplots comparativos por género
-for (var in variables_interes) {
-  print(
-    ggplot(datos, aes_string(x = "Gender", y = var, fill = "Gender")) +
-      geom_boxplot() +
-      labs(title = paste("Comparación de", var, "por género"), x = "Género", y = var) +
-      theme_minimal()
-  )
-}
+# Generar tablas para cada variable cualitativa
+frecuencias <- map(vars_cualitativas, tabla_frecuencias) %>%
+  set_names(vars_cualitativas)
 
+# Mostrar las tablas de frecuencia
+walk2(frecuencias, names(frecuencias), 
+      ~{
+        cat("\nFrecuencias para:", .y, "\n")
+        print(.x)
+      })
 
+## 3. Visualizaciones básicas (originales)
 
+# Histogramas para variables cuantitativas
+histogramas <- map(vars_cuantitativas, ~{
+  ggplot(datos, aes(x = .data[[.x]])) +
+    geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+    labs(title = paste("Histograma de", .x), x = .x, y = "Frecuencia") +
+    theme_minimal()
+})
 
+# Diagramas de caja para variables cuantitativas por género
+boxplots_genero <- map(vars_cuantitativas[1:6], ~{
+  ggplot(datos, aes(x = factor(Gender), y = .data[[.x]], fill = factor(Gender))) +
+    geom_boxplot() +
+    scale_fill_discrete(name = "Género", labels = c("Mujer", "Hombre")) +
+    labs(title = paste(.x, "por género"), x = "Género", y = .x) +
+    theme_minimal()
+})
 
+# Gráficos de barras para variables cualitativas
+graficos_barras <- map(vars_cualitativas[c(1,3,5,7,9)], ~{
+  datos %>%
+    ggplot(aes(x = .data[[.x]], fill = .data[[.x]])) +
+    geom_bar() +
+    labs(title = paste("Distribución de", .x), x = .x, y = "Conteo") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+})
 
-#4. inferencia estadística
+# Gráficos de violín para algunas variables
+violin_plots <- map(c("WeekdaySleep", "WeekendSleep", "AverageSleep"), ~{
+  ggplot(datos, aes(x = factor(Gender), y = .data[[.x]], fill = factor(Gender))) +
+    geom_violin(trim = FALSE) +
+    geom_boxplot(width = 0.1, fill = "white") +
+    scale_fill_discrete(name = "Género", labels = c("Mujer", "Hombre")) +
+    labs(title = paste("Distribución de", .x, "por género"), 
+         x = "Género", y = .x) +
+    theme_minimal()
+})
 
-# Función para verificar normalidad
-verificar_normalidad <- function(variable, nombre) {
-  # Gráfico Q-Q
-  qqPlot(variable, main = paste("Gráfico Q-Q para", nombre))
-  
-  # Test de Shapiro-Wilk
-  shapiro_test <- shapiro.test(variable)
-  
-  # Test de Anderson-Darling
-  ad_test <- ad.test(variable)
-  
-  list(
-    Variable = nombre,
-    Shapiro = shapiro_test,
-    Anderson_Darling = ad_test
-  )
-}
+## 4. Gráficos adicionales solicitados
 
-# Verificar normalidad para cada variable por género
-norm_hombres <- datos %>%
-  filter(Gender == "Hombre") %>%
-  select(all_of(variables_interes)) %>%
-  map(~verificar_normalidad(., deparse(substitute(.))))
+# 1. Gráfico de distribución de género
+g_genero <- ggplot(datos, aes(x = factor(Gender, labels = c("Mujer", "Hombre")))) +
+  geom_bar(fill = c("#FF9AA2", "#A0E7E5"), width = 0.7) +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  labs(title = "Distribución por Género", 
+       x = "Género", y = "Cantidad de estudiantes") +
+  theme_economist() +
+  theme(legend.position = "none")
 
-norm_mujeres <- datos %>%
-  filter(Gender == "Mujer") %>%
-  select(all_of(variables_interes)) %>%
-  map(~verificar_normalidad(., deparse(substitute(.))))
+# 2. Distribución de cronotipo (LarkOwl)
+g_cronotipo <- datos %>%
+  count(LarkOwl) %>%
+  mutate(LarkOwl = factor(LarkOwl, levels = c("Lark", "Neither", "Owl"))) %>%
+  ggplot(aes(x = LarkOwl, y = n, fill = LarkOwl)) +
+  geom_col() +
+  geom_text(aes(label = n), vjust = -0.5) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Distribución de Cronotipos", 
+       x = "Cronotipo", y = "Cantidad de estudiantes",
+       caption = "Lark = Alondra (madrugadora)\nOwl = Búho (nocturno)") +
+  theme_minimal() +
+  theme(legend.position = "none")
 
+# 3. Presencia en clases antes de las 9 de la mañana
+g_clases_tempranas <- ggplot(datos, aes(x = NumEarlyClass)) +
+  geom_bar(fill = "#B5EAD7", color = "black") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  labs(title = "Clases antes de las 9am por semana",
+       x = "Número de clases tempranas", y = "Estudiantes") +
+  scale_x_continuous(breaks = 0:5) +
+  theme_fivethirtyeight()
 
+# 4. Histograma de clases perdidas (ClassesMissed)
+g_clases_perdidas <- ggplot(datos, aes(x = ClassesMissed)) +
+  geom_histogram(bins = 20, fill = "#FFB7B2", color = "black") +
+  labs(title = "Distribución de clases perdidas",
+       x = "Clases perdidas en el semestre", y = "Frecuencia") +
+  theme_minimal()
 
+# 5. Consumo de alcohol
+g_alcohol <- datos %>%
+  count(AlcoholUse) %>%
+  mutate(AlcoholUse = factor(AlcoholUse, 
+                             levels = c("Abstain", "Light", "Moderate", "Heavy"))) %>%
+  ggplot(aes(x = AlcoholUse, y = n, fill = AlcoholUse)) +
+  geom_col() +
+  geom_text(aes(label = n), vjust = -0.5) +
+  scale_fill_manual(values = c("#E2F0CB", "#B5EAD7", "#C7CEEA", "#FFDAC1")) +
+  labs(title = "Consumo de Alcohol entre Estudiantes",
+       x = "Nivel de consumo", y = "Cantidad de estudiantes") +
+  theme_minimal() +
+  theme(legend.position = "none")
 
+# 6. Comparación de GPA por cronotipo (Diagrama de caja)
+g_gpa_cronotipo <- datos %>%
+  mutate(LarkOwl = factor(LarkOwl, levels = c("Lark", "Neither", "Owl"))) %>%
+  ggplot(aes(x = LarkOwl, y = GPA, fill = LarkOwl)) +
+  geom_boxplot() +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 3, color = "red") +
+  scale_fill_brewer(palette = "Pastel1") +
+  labs(title = "GPA según Cronotipo",
+       x = "Cronotipo", y = "GPA",
+       caption = "El punto rojo indica la media") +
+  theme_minimal() +
+  theme(legend.position = "none")
 
+## Mostrar todos los gráficos adicionales
 
+g_genero
+g_cronotipo
+g_clases_tempranas
+g_clases_perdidas
+g_gpa_cronotipo
+g_alcohol
 
-#Comparacion de medias entre generos
+## Mostrar también los gráficos originales (selección)
+# Histogramas
+grid.arrange(grobs = histogramas[1:4], ncol = 2)
 
-# Función corregida para comparar medias
-comparar_medias <- function(var_name, datos) {
-  # Extraer la variable
-  variable <- datos[[var_name]]
-  
-  # Verificar homogeneidad de varianzas
-  var_test <- leveneTest(variable ~ Gender, data = datos)
-  
-  # Realizar pruebas de normalidad por grupo
-  shapiro_hombres <- shapiro.test(variable[datos$Gender == "Hombre"])
-  shapiro_mujeres <- shapiro.test(variable[datos$Gender == "Mujer"])
-  
-  # Decidir qué test usar
-  if (shapiro_hombres$p.value > 0.05 && shapiro_mujeres$p.value > 0.05) {
-    # Si ambos grupos son normales, usar t-test
-    if (var_test$`Pr(>F)`[1] > 0.05) {
-      test <- t.test(variable ~ Gender, data = datos, var.equal = TRUE)
-      metodo <- "t-test (varianzas iguales)"
-    } else {
-      test <- t.test(variable ~ Gender, data = datos, var.equal = FALSE)
-      metodo <- "t-test (varianzas desiguales)"
-    }
-    ci <- test$conf.int
-    diferencia <- diff(tapply(variable, datos$Gender, mean, na.rm = TRUE))
-  } else {
-    # Si no son normales, usar Wilcoxon
-    test <- wilcox.test(variable ~ Gender, data = datos, conf.int = TRUE)
-    metodo <- "Wilcoxon rank-sum test"
-    ci <- test$conf.int
-    diferencia <- median(variable[datos$Gender == "Hombre"], na.rm = TRUE) - 
-      median(variable[datos$Gender == "Mujer"], na.rm = TRUE)
-  }
-  
-  list(
-    Variable = var_name,
-    Metodo = metodo,
-    P_value = test$p.value,
-    Intervalo_Confianza = ci,
-    Diferencia_Medias = diferencia
-  )
-}
+# Boxplots por género
+grid.arrange(grobs = boxplots_genero[1:4], ncol = 2)
 
-# Aplicar la función corregida a todas las variables de interés
-resultados_hipotesis <- map(variables_interes, ~comparar_medias(., datos))
-
-# Mostrar resultados
-for (res in resultados_hipotesis) {
-  cat("\nVariable:", res$Variable, "\n")
-  cat("Método:", res$Metodo, "\n")
-  cat("Valor p:", res$P_value, "\n")
-  cat("Intervalo de confianza:", res$Intervalo_Confianza, "\n")
-  cat("Diferencia (Hombres - Mujeres):", res$Diferencia_Medias, "\n")
-  cat("Conclusión:", ifelse(res$P_value < 0.05, 
-                            "Hay diferencia significativa entre géneros", 
-                            "No hay diferencia significativa entre géneros"), "\n")
-}
-
-
-
-
-#ANOVA para Comparar Más de Dos Grupos (ej. AlcoholUse)
-
-# Ejemplo con AverageSleep y AlcoholUse
-# Verificar normalidad por grupo
-datos %>%
-  group_by(AlcoholUse) %>%
-  summarise(p_value = shapiro.test(AverageSleep)$p.value)
-
-# Si no se cumple normalidad, usar Kruskal-Wallis
-kruskal.test(AverageSleep ~ AlcoholUse, data = datos)
-
-# Si hay diferencias significativas, hacer comparaciones por pares
-pairwise.wilcox.test(datos$AverageSleep, datos$AlcoholUse, p.adjust.method = "BH")
-
-
-
-
-
-#5. Recomendaciones por genero
-
-
-# Función para generar recomendaciones
-generar_recomendaciones <- function(resultados) {
-  cat("\nRECOMENDACIONES BASADAS EN EL ANÁLISIS:\n\n")
-  
-  # Recomendaciones para hombres
-  cat("PARA HOMBRES:\n")
-  if (resultados[[5]]$P_value < 0.05 && 
-      resultados[[5]]$Diferencia_Medias > 0) {
-    cat("- Los hombres reportan significativamente peor calidad de sueño. Se recomienda:\n")
-    cat("  * Establecer una rutina de sueño consistente\n")
-    cat("  * Evitar el uso de pantallas antes de dormir\n")
-    cat("  * Considerar evaluación para trastornos del sueño\n")
-  }
-  
-  if (resultados[[10]]$P_value < 0.05 && 
-      resultados[[10]]$Diferencia_Medias > 0) {
-    cat("- Los hombres consumen significativamente más alcohol. Se recomienda:\n")
-    cat("  * Moderar el consumo de alcohol, especialmente cerca de la hora de dormir\n")
-    cat("  * Buscar alternativas sociales que no involucren alcohol\n")
-  }
-  
-  # Recomendaciones para mujeres
-  cat("\nPARA MUJERES:\n")
-  if (resultados[[7]]$P_value < 0.05 && 
-      resultados[[7]]$Diferencia_Medias < 0) {
-    cat("- Las mujeres reportan significativamente mayor ansiedad. Se recomienda:\n")
-    cat("  * Practicar técnicas de relajación antes de dormir\n")
-    cat("  * Considerar terapia cognitivo-conductual para el insomnio\n")
-    cat("  * Establecer un diario de preocupaciones para liberar estrés antes de dormir\n")
-  }
-  
-  if (resultados[[3]]$P_value < 0.05 && 
-      resultados[[3]]$Diferencia_Medias < 0) {
-    cat("- Las mujeres duermen significativamente menos entre semana. Se recomienda:\n")
-    cat("  * Priorizar el sueño sobre otras actividades\n")
-    cat("  * Evitar la procrastinación que lleva a acostarse tarde\n")
-    cat("  * Considerar si las responsabilidades están equitativamente distribuidas\n")
-  }
-  
-  # Recomendaciones generales basadas en otros análisis
-  cat("\nRECOMENDACIONES GENERALES:\n")
-  cat("- Mantener un horario de sueño consistente, incluso los fines de semana\n")
-  cat("- Evitar clases muy tempranas cuando sea posible\n")
-  cat("- Limitar el uso de dispositivos electrónicos antes de dormir\n")
-  cat("- Hacer ejercicio regularmente, pero no cerca de la hora de dormir\n")
-  cat("- Crear un ambiente óptimo para dormir (fresco, oscuro y silencioso)\n")
-}
-
-# Generar recomendaciones
-generar_recomendaciones(resultados_hipotesis)
+# Gráficos de violín
+grid.arrange(grobs = violin_plots, ncol = 2)
