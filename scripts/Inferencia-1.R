@@ -130,3 +130,4 @@ if(p_val < 0.05){
   cat("No hay evidencia suficiente para afirmar diferencias significativas\n")
   cat("en el GPA entre los diferentes cronotipos.\n")
 }
+

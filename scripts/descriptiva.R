@@ -192,37 +192,8 @@ g_gpa_cronotipo <- datos %>%
   theme(legend.position = "none")
 
 
-
-## 7. GPA vs. Hora de acostarse entre semana (WeekdayBed)
-g1 <- ggplot(datos, aes(x = WeekdayBed, y = GPA)) +
-  geom_point(aes(color = factor(Gender, labels = c("Mujer", "Hombre"))), alpha = 0.7) +
-  geom_smooth(method = "lm", se = FALSE, color = "darkred") +
-  scale_x_continuous(breaks = seq(20, 28, by = 1),
-                     labels = function(x) paste0(x %% 24, ":00")) +
-  scale_color_manual(values = c("#FF9AA2", "#A0E7E5")) +
-  labs(title = "Relación entre GPA y Hora de Acostarse (días de semana)",
-       x = "Hora de acostarse (24h)",
-       y = "GPA",
-       color = "Género") +
-  theme_minimal() +
-  theme(legend.position = "bottom")
-
-## 8. GPA vs. Hora de levantarse entre semana (WeekdayRise)
-g2 <- ggplot(datos, aes(x = WeekdayRise, y = GPA)) +
-  geom_point(aes(color = LarkOwl), alpha = 0.7) +
-  geom_smooth(method = "lm", se = FALSE, color = "darkblue") +
-  scale_x_continuous(breaks = seq(5, 14, by = 1),
-                     labels = function(x) paste0(x %% 24, ":00")) +
-  scale_color_brewer(palette = "Set2") +
-  labs(title = "Relación entre GPA y Hora de Levantarse (días de semana)",
-       x = "Hora de levantarse (24h)",
-       y = "GPA",
-       color = "Cronotipo") +
-  theme_minimal() +
-  theme(legend.position = "bottom")
-
-## 9. GPA vs. Duración del sueño (WeekdaySleep)
-g3 <- ggplot(datos, aes(x = WeekdaySleep, y = GPA)) +
+## 7. GPA vs. Duración del sueño (WeekdaySleep)
+g_duracion_sueno <- ggplot(datos, aes(x = WeekdaySleep, y = GPA)) +
   geom_point(aes(size = PoorSleepQuality, color = Stress), alpha = 0.6) +
   geom_smooth(method = "lm", se = FALSE, color = "darkgreen") +
   scale_color_manual(values = c("normal" = "#B5EAD7", "high" = "#FFB7B2")) +
@@ -235,9 +206,7 @@ g3 <- ggplot(datos, aes(x = WeekdaySleep, y = GPA)) +
 
 ## Mostrar todos los gráficos adicionales
 
-g1
-g2
-g3
+g_duracion_sueno
 g_genero
 g_cronotipo
 g_clases_tempranas
@@ -254,3 +223,4 @@ grid.arrange(grobs = boxplots_genero[1:4], ncol = 2)
 
 # Gráficos de violín
 grid.arrange(grobs = violin_plots, ncol = 2)
+

@@ -42,12 +42,6 @@ ggplot(datos_genero, aes(x = Gender, fill = LarkOwl)) +
 
 # Conclusión
 cat("\n🔍 Conclusión:\n")
-if(p_val < 0.05){
-  cat("Existe una asociación significativa entre género y cronotipo.\n\n")
-  cat("Las mujeres tienden a ser más Lark o Neither\n")
-  cat("Los hombres tienen más probabilidad de ser Owl\n\n")
-  cat("⚖️ Esto podría explicar diferencias en hábitos de sueño y rendimiento académico entre géneros.\n")
-} else {
-  cat("No hay evidencia suficiente para afirmar asociación entre género y cronotipo.\n")
-}
+cat("No hay evidencia suficiente para afirmar asociación entre género y cronotipo.\n")
+
 
